@@ -1,20 +1,4 @@
-/usr/class/assignments/PA2/
- ├── 【你要编写的文件】
-│   ├── cool.flex           # 词法分析器规范
-│   ├── test.cl             # 测试程序
-│   └── README              # 项目文档
-├── 【系统提供的文件】
-│   ├── Makefile           # 构建脚本
-│   ├── mycoolc            # 完整编译器脚本
-│   ├── lextest.cc         # 测试驱动程序
-│   ├── utilities.cc       # 工具函数
-│   ├── stringtab.cc       # 字符串表管理
-│   └── handle_flags.cc    # 命令行参数处理
-└── 【符号链接（环境配置时创建）】
-    ├── parser -> /usr/class/bin/parser
-    ├── semant -> /usr/class/bin/semant
-    └── cgen -> /usr/class/bin/cgen
-    
+
 我需要写的是 词法分析器规范cool.flex
 下面是大体框架
 %{
