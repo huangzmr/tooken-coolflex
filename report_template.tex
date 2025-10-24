@@ -1,0 +1,522 @@
+% =====================================================
+% COOL 语言词法分析器实验报告
+% 编译方式：xelatex report_template.tex
+% =====================================================
+\documentclass[a4paper,12pt]{article}
+\usepackage[UTF8]{ctex}
+\usepackage{geometry}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{setspace}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{longtable}
+
+
+% 页面与格式
+\geometry{left=2.5cm,right=2.5cm,top=2.8cm,bottom=2.8cm}
+\setstretch{1.4}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[C]{COOL 语言词法分析器开发报告}
+\fancyfoot[C]{\thepage}
+
+% 标题格式
+\titleformat{\section}{\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{1em}{}
+
+% 代码样式
+\lstset{
+    basicstyle=\ttfamily\footnotesize,
+    keywordstyle=\color{blue}\bfseries,
+    commentstyle=\color{gray}\itshape,
+    stringstyle=\color{orange},
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny,
+    showstringspaces=false
+}
+
+% 封面
+\begin{document}
+\begin{center}
+    \vspace*{2cm}
+    {\Huge \textbf{COOL 语言词法分析器开发报告}}\\[1.5cm]
+    {\Large \textbf{Compiler Principle Assignment}}\\[2cm]
+    \begin{tabular}{rl}
+        姓名： 黄思睿& \underline{\hspace{8cm}} \\[0.8cm]
+        学号： 20238131074 & \underline{\hspace{8cm}} \\[0.8cm]
+        班级： 大数据二班& \underline{\hspace{8cm}} \\[0.8cm]
+    \end{tabular}\\[2cm]
+    2025 年 10 月 19 日
+\end{center}
+
+\newpage
+\section*{摘要}
+本文档记录了 COOL（Classroom Object-Oriented Language）词法分析器的设计与实现过程。
+报告阐述了 Flex 工作原理、有限状态自动机、模式匹配机制与状态转换；
+随后介绍了词法规则实现、字符串处理、注释解析与错误检测；
+最后通过细胞自动机程序 \texttt{test.cl} 进行测试验证。
+实验结果表明，本词法分析器实现完整、运行稳定，能正确配合 COOL 编译器前端。
+
+\newpage
+\tableofcontents
+\newpage
+
+% =====================================================
+\section{项目概述与环境}
+\subsection{项目目标}
+本项目使用 Flex 工具实现 COOL 语言的词法分析器，
+实现将 COOL 源文件分解为 Token 流，
+支持关键字、标识符、常量、字符串与注释等识别，
+并处理各种词法错误。
+
+\subsection{开发环境}
+\textbf{硬件配置：}
+\begin{itemize}
+    \item CPU：Intel Core i7-10700K @ 3.80GHz
+    \item 内存：16GB DDR4
+\end{itemize}
+\textbf{软件环境：}
+\begin{itemize}
+    \item 操作系统：Ubuntu 22.04 LTS
+    \item Flex 版本：2.6.4
+    \item G++ 版本：11.4.0
+    \item Make 版本：4.3
+\end{itemize}
+
+\subsection{项目目录结构}
+\begin{lstlisting}
+PA2/
+|-- cool.flex
+|-- test.cl
+|-- lexer
+|-- cool-lex.cc
+|-- Makefile
+|-- parser
+|-- semant
+`-- cgen
+\end{lstlisting}
+
+% =====================================================
+\section{Flex 词法分析器原理}
+\subsection{Flex 工作流程}
+Flex 将正则表达式规则转换为 C 语言代码，并自动生成高效的扫描器。
+该扫描器通过有限状态自动机（DFA）实现逐字符匹配与状态转移。
+
+\subsection{有限状态自动机原理}
+词法分析的核心是状态机：从初始状态出发，根据输入字符执行状态转换。
+Flex 根据规则自动构建 DFA，从而高效实现正则表达式匹配。
+
+\subsection{模式匹配机制}
+当输入字符串与多个规则匹配时，Flex 选择“最长匹配”并执行该规则的动作。
+这确保了关键字与标识符、运算符等冲突时能正确分类。
+
+\subsection{状态与状态转换}
+Flex 支持自定义状态（如 \texttt{\%x STRING}、\texttt{\%x COMMENT}）以处理嵌套结构。
+本实验在字符串与注释处理中使用了多状态扫描。
+
+% =====================================================
+\section{实现细节}
+\subsection{关键字与标识符}
+关键字大小写不敏感，布尔常量 \texttt{true/false} 小写；
+类型标识符（\texttt{TYPEID}）以大写字母开头，
+对象标识符（\texttt{OBJECTID}）以小写开头。
+整数常量由数字组成。
+
+\subsection{字符串处理}
+字符串以双引号包围，不能跨行；
+支持转义字符 \texttt{\textbackslash n, \textbackslash t, \textbackslash b, \textbackslash f, \textbackslash ", \textbackslash\textbackslash}；
+最大长度为 1024；
+若字符串未闭合或过长，将返回 \texttt{ERROR}。
+
+\subsection{操作符与注释}
+操作符包括单字符和多字符符号；
+注释分为单行（\texttt{--}）和嵌套多行（\texttt{(* ... *)}）；
+EOF 未闭合注释时报告错误。
+
+\subsection{错误处理}
+\subsection{错误检测与处理测试}
+为了验证词法与语法错误处理机制的健壮性，实验对 \texttt{test.cl} 进行了若干语法破坏性测试。
+当输入文件存在语法错误时，系统能正确输出错误提示信息。
+
+例如在测试过程中，\texttt{test.cl} 某些位置被故意插入非法符号或缺少括号，运行结果如下所示：
+
+\begin{lstlisting}[basicstyle=\ttfamily\small]
+"test.cl", line 56: syntax error at or near ERROR = '
+"test.cl", line 62: syntax error at or near ERROR = [
+"test.cl", line 86: syntax error at or near ERROR = >
+\end{lstlisting}
+
+这些错误信息表明：
+\begin{itemize}
+    \item 词法分析器能识别非法字符并将其返回为 \texttt{ERROR}；
+    \item 语法分析器在接收到非法 Token 时能准确报告所在行号；
+    \item 整体编译器在遇到异常输入时能平稳退出，不会崩溃。
+\end{itemize}
+
+通过这些错误处理测试，可以确认本实验的 COOL 词法分析器在异常情况下的健壮性与容错性。
+
+% =====================================================
+\section{测试与验证}
+\subsection{词法分析输出结果}
+以下为词法分析器对 \texttt{test.cl} 的输出结果片段：
+\begin{lstlisting}[basicstyle=\ttfamily\scriptsize]
+#1 CLASS
+#1 TYPEID CellularAutomaton
+#1 INHERITS
+#1 TYPEID IO
+#1 '{'
+#2 OBJECTID population_map
+#2 ':'
+#2 TYPEID String
+#2 ';'
+#4 OBJECTID init
+#4 '('
+#4 OBJECTID map
+#4 ':'
+#4 TYPEID String
+#4 ')'
+#4 ':'
+#4 TYPEID SELF_TYPE
+#4 '{'
+#5 '{'
+#6 OBJECTID population_map
+#6 ASSIGN
+#6 OBJECTID map
+#6 ';'
+#7 OBJECTID self
+#7 ';'
+#8 '}'
+#9 '}'
+#9 ';'
+...
+#91 '}'
+#91 ';'
+\end{lstlisting}
+
+词法分析器能准确识别 COOL 程序中的各类 Token，输出格式规范。
+
+\subsection{运行输出结果（SPIM）}
+在语法分析与代码生成阶段完成后，程序被翻译为 MIPS 汇编并在 SPIM 模拟器中运行。
+运行结果如下：
+
+\begin{lstlisting}[basicstyle=\ttfamily\small]
+SPIM Version 6.5 of January 4, 2003
+Copyright 1990-2003 by James R. Larus (larus@cs.wisc.edu).
+All Rights Reserved.
+See the file README for a full copyright notice.
+Loaded: ../lib/trap.handler
+         X         
+........XXX........
+.......X...X.......
+......XXX.XXX......
+.....X.......X.....
+....XXX.....XXX....
+...X...X...X...X...
+..XXX.XXX.XXX.XXX..
+.X...............X.
+XXX.............XXX
+...X...........X...
+Increasing heap...
+..XXX.........XXX..
+.X...X.......X...X.
+XXX.XXX.....XXX.XXX
+.......X...X.......
+......XXX.XXX......
+.....X.......X.....
+....XXX.....XXX....
+...X...X...X...X...
+..XXX.XXX.XXX.XXX..
+.X...............X.
+COOL program successfully executed
+\end{lstlisting}
+
+运行结果展示了细胞自动机的演化过程，输出正确且符合预期。
+\newpage
+
+\subsection{测试程序：test.cl}
+以下是测试程序（细胞自动机实现）：
+\begin{lstlisting}[language=C]
+class CellularAutomaton inherits IO {
+    population_map : String;
+    init(map : String) : SELF_TYPE {
+        {
+            population_map <- map;
+            self;
+        }
+    };
+    print() : SELF_TYPE {
+        {
+            out_string(population_map.concat("\n"));
+            self;
+        }
+    };
+    num_cells() : Int {
+        population_map.length()
+    };
+    cell(position : Int) : String {
+        population_map.substr(position, 1)
+    };
+    cell_left_neighbor(position : Int) : String {
+        if position = 0 then
+            cell(num_cells() - 1)
+        else
+            cell(position - 1)
+        fi
+    };
+    cell_right_neighbor(position : Int) : String {
+        if position = num_cells() - 1 then
+            cell(0)
+        else
+            cell(position + 1)
+        fi
+    };
+    cell_at_next_evolution(position : Int) : String {
+        if (if cell(position) = "X" then 1 else 0 fi
+            + if cell_left_neighbor(position) = "X" then 1 else 0 fi
+            + if cell_right_neighbor(position) = "X" then 1 else 0 fi
+            = 1)
+        then
+            "X"
+        else
+            "."
+        fi
+    };
+    evolve() : SELF_TYPE {
+        (let position : Int in
+        (let num : Int <- num_cells() in
+        (let temp : String in
+            {
+                while position < num loop
+                    {
+                        temp <- temp.concat(cell_at_next_evolution(position));
+                        position <- position + 1;
+                    }
+                pool;
+                population_map <- temp;
+                self;
+            }
+        ) ) )
+    };
+};
+
+class Main {
+    cells : CellularAutomaton;
+    main() : SELF_TYPE {
+        {
+            cells <- (new CellularAutomaton).init("         X         ");
+            cells.print();
+            (let countdown : Int <- 20 in
+                while 0 < countdown loop
+                    {
+                        cells.evolve();
+                        cells.print();
+                        countdown <- countdown - 1;
+                    }
+                pool
+            );
+            self;
+        }
+    };
+};
+\end{lstlisting}
+
+\subsection{运行与结果}
+执行命令：
+\begin{lstlisting}
+$ ./lexer test.cl
+\end{lstlisting}
+输出正确的 Token 序列，词法分析器运行稳定。
+
+% =====================================================
+\section{遇到的问题与解决方案}
+\begin{itemize}
+    \item 字符串状态转换初期漏处理转义符，导致错误行数不准确 → 通过添加 \texttt{curr\_lineno++} 修正；
+    \item 注释嵌套匹配逻辑初版未递归 → 改为 \texttt{comment\_level++/--} 实现嵌套处理；
+    \item 测试时发现字符串过长未检测 → 增加宏 \texttt{CHECK\_STRING\_OVERFLOW}。
+\end{itemize}
+
+% =====================================================
+\section{总结}
+本实验通过 Flex 实现了 COOL 语言词法分析器，
+深入理解了自动机模型在编译器前端的作用。
+实现的扫描器能稳定识别 COOL 语言中的各类词法单元，
+支持错误处理与嵌套注释，是编译器实现的重要组成部分。
+
+% =====================================================
+\appendix
+\section{附录：cool.flex 源码}
+\begin{lstlisting}[language=C]
+%option noyywrap
+%option noyywrap
+
+%option noyywrap
+
+%{
+#include <cool-parse.h>
+#include <stringtab.h>
+#include <utilities.h>
+#define yylval cool_yylval
+#define yylex  cool_yylex
+#define MAX_STR_CONST 1025
+#define YY_NO_UNPUT
+extern FILE *fin;
+#undef YY_INPUT
+#define YY_INPUT(buf,result,max_size) \
+  if ((result = fread((char*)buf, sizeof(char), max_size, fin)) < 0) \
+    YY_FATAL_ERROR("read() in flex scanner failed");
+char string_buf[MAX_STR_CONST];
+char *string_buf_ptr;
+extern int curr_lineno;
+extern YYSTYPE cool_yylval;
+static int comment_level;
+
+  if (string_buf_ptr - string_buf >= MAX_STR_CONST - 1) { \
+    cool_yylval.error_msg = "String constant too long"; \
+    BEGIN(INITIAL); \
+    return ERROR; \
+  }
+%}
+
+%x COMMENT
+%x STRING
+
+DARROW       =>
+ASSIGN       <-
+LE           <=
+DIGIT        [0-9]
+LOWER        [a-z]
+UPPER        [A-Z]
+LETTER       [a-zA-Z]
+ALNUM        [a-zA-Z0-9]
+
+%%
+
+[cC][lL][aA][sS][sS]                  { return CLASS; }
+[eE][lL][sS][eE]                      { return ELSE; }
+[fF][iI]                              { return FI; }
+[iI][fF]                              { return IF; }
+[iI][nN]                              { return IN; }
+[iI][nN][hH][eE][rR][iI][tT][sS]      { return INHERITS; }
+[iI][sS][vV][oO][iI][dD]              { return ISVOID; }
+[lL][eE][tT]                           { return LET; }
+[lL][oO][oO][pP]                       { return LOOP; }
+[pP][oO][oO][lL]                       { return POOL; }
+[tT][hH][eE][nN]                       { return THEN; }
+[wW][hH][iI][lL][eE]                   { return WHILE; }
+[cC][aA][sS][eE]                       { return CASE; }
+[eE][sS][aA][cC]                       { return ESAC; }
+[nN][eE][wW]                           { return NEW; }
+[oO][fF]                               { return OF; }
+[nN][oO][tT]                           { return NOT; }
+
+t[rR][uU][eE]        { cool_yylval.boolean = 1; return BOOL_CONST; }
+f[aA][lL][sS][eE]    { cool_yylval.boolean = 0; return BOOL_CONST; }
+
+{UPPER}({LETTER}|{DIGIT}|_)* {
+  cool_yylval.symbol = stringtable.add_string(yytext);
+  return TYPEID;
+}
+{LOWER}({LETTER}|{DIGIT}|_)* {
+  cool_yylval.symbol = stringtable.add_string(yytext);
+  return OBJECTID;
+}
+
+{DIGIT}+ {
+  cool_yylval.symbol = stringtable.add_string(yytext);
+  return INT_CONST;
+}
+
+
+
+"+"         { return '+'; }
+"-"         { return '-'; }
+"*"         { return '*'; }
+"/"         { return '/'; }
+"~"         { return '~'; }
+"<"         { return '<'; }
+"="         { return '='; }
+"."         { return '.'; }
+"@"         { return '@'; }
+","         { return ','; }
+":"         { return ':'; }
+";"         { return ';'; }
+"("         { return '('; }
+")"         { return ')'; }
+"{"         { return '{'; }
+"}"         { return '}'; }
+
+{DARROW}    { return DARROW; }
+{ASSIGN}    { return ASSIGN; }
+{LE}        { return LE; }
+
+\" {
+  BEGIN(STRING);
+  string_buf_ptr = string_buf;
+}
+
+<STRING>\" {
+  BEGIN(INITIAL);
+  *string_buf_ptr = '\0';
+  cool_yylval.symbol = stringtable.add_string(string_buf);
+  return STR_CONST;
+}
+
+<STRING>\n {
+  curr_lineno++;
+  BEGIN(INITIAL);
+  cool_yylval.error_msg = "Unterminated string constant";
+  return ERROR;
+}
+
+<STRING><<EOF>> {
+  BEGIN(INITIAL);
+  cool_yylval.error_msg = "EOF in string constant";
+  return ERROR;
+}
+
+<STRING>\0 {
+  cool_yylval.error_msg = "String contains null character.";
+  BEGIN(INITIAL);
+  return ERROR;
+}
+
+<STRING>\\n { CHECK_STRING_OVERFLOW(); *string_buf_ptr++ = '\n'; }
+<STRING>\\t { CHECK_STRING_OVERFLOW(); *string_buf_ptr++ = '\t'; }
+<STRING>\\b { CHECK_STRING_OVERFLOW(); *string_buf_ptr++ = '\b'; }
+<STRING>\\f { CHECK_STRING_OVERFLOW(); *string_buf_ptr++ = '\f'; }
+<STRING>\\. { CHECK_STRING_OVERFLOW(); *string_buf_ptr++ = yytext[1]; }
+<STRING>.  {
+  if (yytext[0] == '\0') {
+    BEGIN(INITIAL);
+    cool_yylval.error_msg = "String contains null character.";
+    return ERROR;
+  }
+  CHECK_STRING_OVERFLOW();
+  *string_buf_ptr++ = yytext[0];
+}
+
+"--".*                          { }
+[ \f\r\t\v]+                    { }
+\n                              { curr_lineno++; }
+
+"(*"                            { BEGIN(COMMENT); comment_level = 1; }
+<COMMENT>"(*"                   { comment_level++; }
+<COMMENT>"*)"                   { if (--comment_level == 0) BEGIN(INITIAL); }
+<COMMENT>\n                     { curr_lineno++; /* 注释中允许换行 */}
+<COMMENT><<EOF>>                { cool_yylval.error_msg = "EOF in comment"; BEGIN(INITIAL); return ERROR; }
+<COMMENT>.                      { }
+
+"*)"                            { cool_yylval.error_msg = "Unmatched *)"; return ERROR; }
+
+.                               { cool_yylval.error_msg = yytext; return ERROR; }
+
+%%
+
+\end{lstlisting}
+
+\end{document}
+
