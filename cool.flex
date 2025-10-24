@@ -157,6 +157,4 @@ f[aA][lL][sS][eE]    { cool_yylval.boolean = 0; return BOOL_CONST; }
 .                               { cool_yylval.error_msg = yytext; return ERROR; }
 
 %%
-\end{lstlisting}
 
-\end{document}
